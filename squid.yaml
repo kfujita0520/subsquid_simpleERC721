@@ -1,24 +1,18 @@
 manifestVersion: subsquid.io/v0.1
-name: stm-indexer-astar-v2
+name: stm-indexer-astar-v3
 version: 1
-description: "The very first evm squid from manifest  "
-build:
+description: 'ERC721 indexer for Astar network'
+build: 
 deploy:
   addons:
-    postgres:
+    postgres: 
   processor:
     cmd:
-      - node
-      - lib/main
+      - sqd
+      - process:prod
+    env:
+      RPC_ENDPOINT: ${{ secrets.ASTAR_RPC_ENDPOINT }}
   api:
     cmd:
-      - npx
-      - squid-graphql-server
-      - "--dumb-cache"
-      - in-memory
-      - "--dumb-cache-ttl"
-      - "1000"
-      - "--dumb-cache-size"
-      - "100"
-      - "--dumb-cache-max-age"
-      - "1000"
+      - sqd
+      - serve:prod

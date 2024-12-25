@@ -1,64 +1,37 @@
-import { TypeormDatabase } from "@subsquid/typeorm-store";
-import * as erc721 from "./abi/erc721";
-import * as erc1155 from "./abi/erc1155";
-//AstarIndexerのmappingsフォルダを移植した
-import * as modules from "./mappings";
-import * as utils from "./mappings/utils";
-import { processor } from "./processor";
+import {TypeormDatabaseWithCache, StoreWithCache} from '@belopash/typeorm-store'
+import * as erc721 from './abi/erc721'
+import { handleErc20Transfer } from './mapping/erc20'
+import { handleErc721Transfer } from './mapping/erc721'
+import { processor, ProcessorContext } from './processor'
+import { TaskQueue } from './utils/queue'
 
-processor.run(new TypeormDatabase({ supportHotBlocks: true }), async (ctx) => {
-  utils.entity.initAllEntityManagers(ctx);
-  await utils.entity.prefetchEntities(ctx);
+type MappingContext = ProcessorContext<StoreWithCache> & { queue: TaskQueue }
 
-  let data_cnt = 1;
+processor.run(new TypeormDatabaseWithCache({supportHotBlocks: true}), async ctx => {
 
-  for (const block of ctx.blocks) {
-    if (block.header.height % 1000 == 0) {
-      console.log(block.header.height);
+    const mctx: MappingContext = {
+        ...ctx,
+        queue: new TaskQueue()
     }
-    for (let log of block.logs) {
-      if (log.topics[0] == erc721.events.Transfer.topic) {
-        if (log.topics.length == 4) {
-          // EIP-721
-          utils.common.blockContextManager.init(block.header, log);
-          try {
-            //console.log(block.header.height, log.logIndex);
-            await modules.handleErc721Transfer();
-          } catch (error) {
-            console.log(error);
-          }
-          data_cnt += 1;
-        } else {
-          // EIP-20
-          continue;
+
+    for (const block of ctx.blocks) {
+        for (const log of block.logs) {
+            switch (log.topics[0]) {
+                case erc721.events.Transfer.topic: { // same as erc20.events.Transfer.topic, so we need to tell them apart
+                    if (log.topics.length === 4) { // likely ERC721
+                        handleErc721Transfer(mctx, log)
+                    }
+                    else if (log.topics.length === 3) { // likely ERC20
+                        // handleErc20Transfer(mctx, log)
+                    }
+                    else {
+                        ctx.log.info(`Skipping a Transfer(address,address,uint256) event from ${log.address} not recognized as ERC20 or ERC721. Txn ${log.transactionHash}`)
+                    }
+                    break
+                }
+            }
         }
-      }
-      // else if (log.topics[0] == erc1155.events.TransferBatch.topic) {
-      //   utils.common.blockContextManager.init(block.header, log);
-      //   try {
-      //     await modules.handleErc1155TransferBatch();
-      //   } catch (error) {
-      //     console.log(error);
-      //   }
-      //   data_cnt += 1;
-      // } else if (log.topics[0] == erc1155.events.TransferBatch.topic) {
-      //   utils.common.blockContextManager.init(block.header, log);
-      //   try {
-      //     await modules.handleErc1155TransferSingle();
-      //   } catch (error) {
-      //     console.log(error);
-      //   }
-      //   data_cnt += 1;
-      // }
-
-      //定期的にsave
-      if (data_cnt % 10 == 0) {
-        await utils.entity.saveAllEntities();
-      }
-
-      utils.common.blockContextManager.resetBlockContext();
     }
-  }
 
-  await utils.entity.saveAllEntities();
-});
+    await mctx.queue.run()
+})

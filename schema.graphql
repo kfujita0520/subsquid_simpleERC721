@@ -1,87 +1,60 @@
-enum ContractStandard {
-  ERC20
-  ERC721
-  ERC1155
-}
-
-enum TransferType {
-  TRANSFER
-  MINT
-  BURN
-}
-
-enum TransferDirection {
-  From
-  To
-}
-
 type Account @entity {
-  id: ID!
+    id: ID!
+    address: String! @index @unique
 
-  nftTransfers: [AccountNftTransfer] @derivedFrom(field: "account")
-
-  ownedTokens: [NfToken] @derivedFrom(field: "currentOwner")
+    tokens: [TokenBalance!]! @derivedFrom(field: "account")
 }
 
-type Collection @entity {
-  id: ID! # Contract address
-  collectionType: ContractStandard! @index
-  nfts: [NfToken] @derivedFrom(field: "collection")
-  createdAtBlock: BigInt!
-  createdAt: DateTime!
+type TokenBalance @entity {
+    id: ID!
+    account: Account!
+    token: Token!
+    value: BigInt!
 }
 
-interface Token {
-  id: ID!
-  name: String
-  symbol: String
+enum TokenStandard {
+    ERC20
+    ERC721
+    ERC1155
 }
 
-# ERC721 / ERC1155 tokens (Non-Fungible Token)
-type NfToken implements Token @entity {
-  id: ID! # <token_contract_address>-<token_id>
-  nativeId: String!
-  name: String @index
-  symbol: String @index
-  collection: Collection!
-  uri: String
-  currentOwner: Account! # "to" account in transfer
-  amount: BigInt! @index
-  isBurned: Boolean! @index
+type Contract @entity {
+    id: ID!
+    address: String! @index @unique
+
+    totalSupply: BigInt!
+    interfaces: [TokenStandard!]!
+
+    tokens: [Token!]! @derivedFrom(field: "contract")
+    transfers: [Transfer!]! @derivedFrom(field: "contract")
 }
 
-interface Transfer {
-  id: ID!
-  blockNumber: BigInt!
-  timestamp: DateTime!
-  eventIndex: Int!
-  txnHash: String!
-  from: Account!
-  to: Account!
-  amount: BigInt
-  transferType: TransferType
+type Token @entity {
+    id: ID!
+
+    contract: Contract!
+    type: TokenStandard! @index
+    index: BigInt @index
+
+    supply: BigInt!
+
+    holders: [TokenBalance!]! @derivedFrom(field: "token")
+
+    transfers: [Transfer!]! @derivedFrom(field: "token")
 }
 
-# Non-Fungible token transfers
-type NftTransfer implements Transfer @entity {
-  id: ID!
-  blockNumber: BigInt! @index
-  timestamp: DateTime!
-  eventIndex: Int!
-  txnHash: String!
-  from: Account!
-  to: Account!
-  operator: Account
-  amount: BigInt! @index
-  transferType: TransferType @index
-  token: NfToken!
-  isBatch: Boolean!
+type Transfer @entity {
+    id: ID!
+    blockNumber: Int! @index
+    timestamp: DateTime! @index
+    txnHash: String
+
+    contract: Contract!
+    token: Token!
+
+    from: Account!
+    to: Account!
+    amount: BigInt!
 }
 
-# entity for linking account and NFT transfer
-type AccountNftTransfer @entity {
-  id: ID!
-  transfer: NftTransfer
-  account: Account!
-  direction: TransferDirection
-}
+

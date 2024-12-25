@@ -1,1 +1,0 @@
-export { createNfToken } from "./nfTokens";
