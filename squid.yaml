@@ -16,3 +16,10 @@ deploy:
     cmd:
       - sqd
       - serve:prod
+scale:
+  dedicated: false
+  processor:
+    profile: medium
+  addons:
+    postgres:
+      profile: small

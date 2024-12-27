@@ -51,7 +51,7 @@ export function handleErc721Transfer(
     const amount = 1n
 
     if (fromAddress === ZERO_ADDRESS && toAddress === ZERO_ADDRESS) {
-        mctx.log.info(`Skipping a ERC721 Transfer from null to null detected on contract ${log.address} txn ${log.transactionHash}`)
+        mctx.log.info(`Mint of token ${index} from contract ${contractId} doesn't come from null - that breaks ERC721. See tx ${log.transactionHash} at height ${log.block.height}`)
         return
     }
 
